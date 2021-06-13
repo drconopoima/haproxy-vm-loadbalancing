@@ -30,7 +30,7 @@ sudo -p "Please enter your password" whoami 1>/dev/null && {
     if [[ ! -d /etc/httpd/sites-enabled ]]; then
         mkdir -p /etc/httpd/sites-enabled
     fi
-    grep -E "^[[:space:]]*IncludeOptional[[:space:]]*sites-enabled/\*\.conf" || echo "IncludeOptional sites-enabled/*.conf" >>/etc/httpd/conf/httpd.conf
+    grep -E "^[[:space:]]*IncludeOptional[[:space:]]*sites-enabled/\*\.conf" /etc/httpd/conf/httpd.conf || echo "IncludeOptional sites-enabled/*.conf" >>/etc/httpd/conf/httpd.conf
     echo -e "\
 <VirtualHost *:80>\n\
     ServerName www.drconopoima.com\n\
