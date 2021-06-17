@@ -7,7 +7,6 @@ sudo -p "Please enter your password" whoami 1>/dev/null && {
     systemctl start firewalld
     firewall-cmd --permanent --add-service=ssh
     firewall-cmd --permanent --add-service=http
-    firewall-cmd --permanent --add-service=https
     firewall-cmd --reload
     if [[ ! -d /var/www/drconopoima.com/html ]]; then
         mkdir -v -p /var/www/drconopoima.com/html
@@ -39,11 +38,11 @@ sudo -p "Please enter your password" whoami 1>/dev/null && {
     ErrorLog /var/www/drconopoima.com/log/error.log\n\
     CustomLog /var/www/drconopoima.com/log/requests.log combined\n\
 </VirtualHost>" >/etc/httpd/sites-available/drconopoima.com.conf
-    chown -R apache:apache /var/www/
-    chmod -R 755 /var/www
-    ln -s -T /etc/httpd/sites-available/drconopoima.com.conf /etc/httpd/sites-enabled/drconopoima.com.conf
+    chown -v -R apache:apache /var/www/
+    chmod -v -R 755 /var/www
+    ln -v -s -T /etc/httpd/sites-available/drconopoima.com.conf /etc/httpd/sites-enabled/drconopoima.com.conf
     sed -i -e '/^[^#]/ s/^/#/' /etc/httpd/conf.d/welcome.conf
-    ln -sf -T /var/www/drconopoima.com/html/index.html /var/www/html/index.html
+    ln -v -sf -T /var/www/drconopoima.com/html/index.html /var/www/html/index.html
     setsebool -P httpd_unified 1
     semanage fcontext -a -t httpd_log_t "/var/www/drconopoima.com/log(/.*)?"
     restorecon -R -v /var/www/drconopoima.com/log
