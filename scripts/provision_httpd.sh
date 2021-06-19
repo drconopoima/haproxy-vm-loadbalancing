@@ -2,7 +2,12 @@
 
 sudo -p "Please enter your password" whoami 1>/dev/null && {
     yum -y update
-    yum install -y httpd firewalld policycoreutils-python
+    yum install -y redhat-lsb-core
+    if [[ $(lsb_release -rs) =~ ^8.* ]]; then
+        yum install -y httpd firewalld policycoreutils-python-utils
+    else
+        yum install -y httpd firewalld policycoreutils-python
+    fi
     systemctl enable firewalld
     systemctl start firewalld
     firewall-cmd --permanent --add-service=ssh
@@ -44,7 +49,12 @@ sudo -p "Please enter your password" whoami 1>/dev/null && {
     sed -i -e '/^[^#]/ s/^/#/' /etc/httpd/conf.d/welcome.conf
     ln -v -sf -T /var/www/drconopoima.com/html/index.html /var/www/html/index.html
     setsebool -P httpd_unified 1
-    semanage fcontext -a -t httpd_log_t "/var/www/drconopoima.com/log(/.*)?"
+
+    if [[ $(lsb_release -rs) =~ ^8.* ]]; then
+        semanage fcontext -a -t httpd_sys_content_t "/var/www/drconopoima.com/log(/.*)?"
+    else
+        semanage fcontext -a -t httpd_log_t "/var/www/drconopoima.com/log(/.*)?"
+    fi
     restorecon -R -v /var/www/drconopoima.com/log
     systemctl daemon-reload
     systemctl start httpd

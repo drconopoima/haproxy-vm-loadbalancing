@@ -3,8 +3,12 @@
 
 sudo -p "Please enter your password" whoami 1>/dev/null && {
     yum -y update
+    yum install -y redhat-lsb-core
+    if [[ $(lsb_release -rs) =~ ^8.* ]]; then
+        yum config-manager --set-enabled powertools
+    fi
     yum install epel-release -y
-    yum install -y jq gcc pcre-devel tar make firewalld
+    yum install -y jq gcc pcre-devel tar make firewalld gcc openssl-devel readline-devel systemd-devel make pcre-devel tar lua lua-devel
     systemctl enable firewalld
     systemctl start firewalld
     HAPROXY_LATEST_VERSION=$(curl -s https://api.github.com/repos/haproxy/haproxy/tags | jq '.[].name' | grep -v -- '-de' | head -n 1 | tr -d '"' | tr -d 'v')
@@ -12,7 +16,29 @@ sudo -p "Please enter your password" whoami 1>/dev/null && {
     curl -s -o "/tmp/haproxy-${HAPROXY_LATEST_VERSION}.tar.gz" "https://www.haproxy.org/download/${HAPROXY_SHORT_VERSION}/src/haproxy-${HAPROXY_LATEST_VERSION}.tar.gz"
     tar xzvf "/tmp/haproxy-${HAPROXY_LATEST_VERSION}.tar.gz" -C "/tmp"
     cd "/tmp/haproxy-${HAPROXY_LATEST_VERSION}" || exit
-    make TARGET=linux-glibc
+    if [[ $(lsb_release -rs) =~ ^8.* ]]; then
+        make USE_NS=1 \
+            USE_TFO=1 \
+            USE_OPENSSL=1 \
+            USE_ZLIB=1 \
+            USE_LUA=1 \
+            USE_PCRE=1 \
+            USE_SYSTEMD=1 \
+            USE_LIBCRYPT=1 \
+            USE_THREAD=1 \
+            TARGET=linux-glibc
+    else # required LUA > 5.3 not available in earlier versions
+        make USE_NS=1 \
+            USE_TFO=1 \
+            USE_OPENSSL=1 \
+            USE_ZLIB=1 \
+            USE_PCRE=1 \
+            USE_SYSTEMD=1 \
+            USE_LIBCRYPT=1 \
+            USE_THREAD=1 \
+            TARGET=linux-glibc
+    fi
+
     make install
     mkdir -v -p /etc/haproxy
     mkdir -v -p /var/lib/haproxy
