@@ -24,6 +24,7 @@ sudo -p "Please enter your password" whoami 1>/dev/null && {
     useradd -r haproxy
     firewall-cmd --permanent --add-service=ssh
     firewall-cmd --permanent --zone=public --add-service=http
+    firewall-cmd --permanent --zone=public --add-port=8404/tcp
     firewall-cmd --reload
     cat <<-EOF >/etc/haproxy/haproxy.cfg
 global

@@ -13,6 +13,7 @@ Vagrant.configure("2") do |config|
     loadbalancer1.vm.hostname = "loadbalancer1"
     loadbalancer1.vm.network "private_network", ip: "172.29.1.10"
     loadbalancer1.vm.provision "shell", path: "scripts/provision_haproxy.sh"
+    loadbalancer1.vm.network "forwarded_port", guest: 8404, host: 8404
   end
 
   config.vm.define "web1" do |web1|
