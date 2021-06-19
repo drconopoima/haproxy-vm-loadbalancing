@@ -5,16 +5,24 @@ sudo -p "Please enter your password" whoami 1>/dev/null && {
     yum -y update
     yum install -y redhat-lsb-core
     if [[ $(lsb_release -rs) =~ ^8.* ]]; then
-        yum config-manager --set-enabled powertools
+        yum config-manager --set-enabled powertools # for lua
     fi
-    yum install epel-release -y
-    yum install -y jq gcc pcre-devel tar make firewalld gcc openssl-devel readline-devel systemd-devel make pcre-devel tar lua lua-devel
+    yum install -y epel-release # for jq
+    if [[ $(lsb_release -rs) =~ ^8.* ]]; then
+        yum install -y jq openssl openssl-devel readline readline-devel systemd-devel lua lua-devel gcc pcre-devel tar make firewalld policycoreutils-python-utils
+    else
+        yum install -y jq openssl openssl-devel readline readline-devel systemd-devel gcc pcre-devel tar make firewalld policycoreutils-python
+    fi
     systemctl enable firewalld
     systemctl start firewalld
+}
+sudo -p "Please enter your password" whoami 1>/dev/null && {
     HAPROXY_LATEST_VERSION=$(curl -s https://api.github.com/repos/haproxy/haproxy/tags | jq '.[].name' | grep -v -- '-de' | head -n 1 | tr -d '"' | tr -d 'v')
     HAPROXY_SHORT_VERSION=$(echo -n "${HAPROXY_LATEST_VERSION}" | awk -F "." '{ print $1"."$2 }')
     curl -s -o "/tmp/haproxy-${HAPROXY_LATEST_VERSION}.tar.gz" "https://www.haproxy.org/download/${HAPROXY_SHORT_VERSION}/src/haproxy-${HAPROXY_LATEST_VERSION}.tar.gz"
+    sync
     tar xzvf "/tmp/haproxy-${HAPROXY_LATEST_VERSION}.tar.gz" -C "/tmp"
+    sync
     cd "/tmp/haproxy-${HAPROXY_LATEST_VERSION}" || exit
     if [[ $(lsb_release -rs) =~ ^8.* ]]; then
         make USE_NS=1 \
@@ -38,26 +46,23 @@ sudo -p "Please enter your password" whoami 1>/dev/null && {
             USE_THREAD=1 \
             TARGET=linux-glibc
     fi
-
     make install
-    mkdir -v -p /etc/haproxy
-    mkdir -v -p /var/lib/haproxy
-    mkdir -v -p /usr/share/haproxy
-    touch /var/lib/haproxy/stats
-    ln -s /usr/local/sbin/haproxy /usr/sbin/haproxy
-    cp "/tmp/haproxy-${HAPROXY_LATEST_VERSION}/examples/haproxy.init" "/etc/init.d/haproxy"
-    chmod -v 755 /etc/init.d/haproxy
     useradd -r haproxy
-    firewall-cmd --permanent --add-service=ssh
-    firewall-cmd --permanent --zone=public --add-service=http
-    firewall-cmd --permanent --zone=public --add-port=8404/tcp
-    firewall-cmd --reload
+    mkdir -v -p /etc/haproxy
+    mkdir -v -p /var/lib/haproxy/log
+    sync
+    touch /var/lib/haproxy/stats
+    ln -v -s /usr/local/sbin/haproxy /usr/sbin/haproxy
+    chown -v -R haproxy:haproxy /var/lib/haproxy
+    cp "/tmp/haproxy-${HAPROXY_LATEST_VERSION}/examples/haproxy.init" "/etc/init.d/haproxy"
+    sync
+    chmod -v 755 /etc/init.d/haproxy
     cat <<-EOF >/etc/haproxy/haproxy.cfg
 global
     maxconn  20000
-    log      127.0.0.1 local0
+    log      /log/haproxy.log local2
     user     haproxy
-    chroot   /usr/share/haproxy
+    chroot   /var/lib/haproxy
     pidfile  /run/haproxy.pid
     daemon
 
@@ -93,8 +98,39 @@ backend app
     server  web2 172.29.1.102:80 check
     server  web3 172.29.1.103:80 check
 EOF
+    cat <<-EOF >/etc/rsyslog.d/99-haproxy.conf
+$AddUnixListenSocket /var/lib/haproxy/log/haproxy.log
+
+:programname, startswith, "haproxy" {
+  /var/log/haproxy/haproxy.log
+  stop
+}
+EOF
+    cat <<-EOF >/etc/logrotate.d/haproxy
+/var/log/haproxy/haproxy.log {
+    missingok
+    copytruncate
+    notifempty
+    rotate 50
+    size 25M
+    compress
+    delaycompress
+    postrotate
+	    /bin/kill -HUP $(cat /var/run/rsyslogd.pid 2>/dev/null) 2> /dev/null || true
+    endscript
+}
+EOF
+    sync
+    chmod 644 /etc/rsyslog.d/99-haproxy.conf
+    semanage fcontext -a -t syslog_conf_t "/etc/rsyslog.d/99-haproxy.conf"
+    semanage fcontext -a -t etc_t "/etc/logrotate.d/haproxy"
     chmod 666 /etc/haproxy/haproxy.cfg
     systemctl daemon-reload
+    systemctl restart rsyslog
+    firewall-cmd --permanent --add-service=ssh
+    firewall-cmd --permanent --zone=public --add-service=http
+    firewall-cmd --permanent --zone=public --add-port=8404/tcp
+    firewall-cmd --reload
     chkconfig haproxy on
     systemctl start haproxy
     systemctl enable haproxy
